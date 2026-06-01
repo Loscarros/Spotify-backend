@@ -19,6 +19,11 @@ const userSchema = new mongoose.Schema({
         type:String,
         enum:['user','artist'], //only two value possible so enum is used
         default:'user'
+    },
+    verified:{
+        type:Boolean,
+        reqired:true,
+        default:false
     }
 })
 

@@ -6,6 +6,12 @@ const crypto = require("crypto")
 
 const userRegister = async (req, res) => {
 
+    if(!req.body.verified){
+        return res.status(400).json({
+            message:"Email not verified"
+        })
+    }
+
     const userExisting = await userModel.findOne({
         $or: [
             { username: req.body.username },     //$or operates does or operator work with multiple conditions 
@@ -23,7 +29,8 @@ const userRegister = async (req, res) => {
         username: req.body.username,
         email: req.body.email,
         password: hash,
-        usertype: req.body.usertype ? req.body.usertype : 'user'
+        usertype: req.body.usertype ? req.body.usertype : 'user',
+        verified:true
     })
 
     const refreshToken = jwt.sign({
@@ -62,7 +69,8 @@ const userRegister = async (req, res) => {
             id: user._id,
             username: user.username,
             email: user.email,
-            usertype: user.usertype
+            usertype: user.usertype,
+            verified:user.verified
         },
         accessToken: accessToken
     })
@@ -128,7 +136,8 @@ const userLogin = async (req, res) => {
             id: user._id,
             username: user.username,
             email: user.email,
-            usertype: user.usertype
+            usertype: user.usertype,
+            verified:user.verified
         },
         accessToken: accessToken
     })
