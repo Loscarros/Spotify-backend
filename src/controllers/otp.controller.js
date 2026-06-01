@@ -1,7 +1,8 @@
 const otpModel = require('../models/otp.model')
+const userModel=require('../models/normalUser.model')
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
-const sendMail = require('../services/otp.service')
+const mailService = require('../services/otp.service')
 
 const getOtp = async (req, res) => {
     if (!req.body.email || !req.body.username) {
@@ -18,7 +19,7 @@ const getOtp = async (req, res) => {
     })
 
     try {
-        await sendMail(username, email, generatedOtp)
+        await mailService.sendMail(username, email, generatedOtp)
 
         await otpModel.create({
             email: email,
@@ -91,7 +92,7 @@ const resendOtp = async (req, res) => {
     }
 
     try {
-        await sendMail(username, email, newGeneratedOtp)
+        await mailService.sendMail(username, email, newGeneratedOtp)
 
         await otpUser.updateOne({
             otp: newHashedOtp,
@@ -109,4 +110,52 @@ const resendOtp = async (req, res) => {
     }
 }
 
-module.exports = { getOtp, verifyOtp, resendOtp };
+const getOtpChangePassword=async(req,res)=>{
+    if(!req.body.username ||!req.body.email){
+        return res.status(404).json({
+            message:"Credentials not found"
+        })
+    }
+    const { username, email } = req.body
+
+    const user = await userModel.findOne({
+             username: username ,
+             email: email 
+    })
+
+    if (!user) {
+        return res.status(401).json({
+            message: "Invalid Credentials"
+        })
+    }
+    if(!user.verified){
+        return res.status(401).json({
+            message: "User not verified"
+        })
+    }
+    const generatedOtp = crypto.randomInt(100000, 1000000).toString()
+    const hashedOtp = await bcrypt.hash(generatedOtp, 7)
+
+    await otpModel.deleteMany({
+        email: email
+    })
+
+    try{
+        await mailService.cofirmMail(username,email,generatedOtp)
+        await otpModel.create({
+            email:email,
+            otp:hashedOtp
+        })
+        res.status(201).json({
+            message:"OTP sent successfully"
+        })
+    } catch(err){
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal error"
+        })
+    }
+
+}
+
+module.exports = { getOtp, verifyOtp, resendOtp ,getOtpChangePassword};

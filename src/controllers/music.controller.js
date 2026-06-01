@@ -20,8 +20,6 @@ const createMusic = async (req, res) => {
         music
     })
 
-
-
 }
 
 const createAlbum = async (req, res) => {

@@ -14,6 +14,8 @@ router.post('/logoutall',authController.userLogoutAll)
 
 router.post('/refresh',authController.getAccessToken)
 
+router.post('/changepassword/getOtp',validator.OTPValidationRules,OTPController.getOtpChangePassword)
+router.post('/changepassword',validator.registerUserValidationRules,authController.userForgetPassword)
 
 
 module.exports=router;

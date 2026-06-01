@@ -2,13 +2,15 @@ const userModel = require('../models/normalUser.model')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 const sessionModel = require('../models/session.model')
+const otpModel = require('../models/otp.model')
+const sendMail = require('../services/otp.service')
 const crypto = require("crypto")
 
 const userRegister = async (req, res) => {
 
-    if(!req.body.verified){
+    if (!req.body.verified) {
         return res.status(400).json({
-            message:"Email not verified"
+            message: "Email not verified"
         })
     }
 
@@ -30,49 +32,19 @@ const userRegister = async (req, res) => {
         email: req.body.email,
         password: hash,
         usertype: req.body.usertype ? req.body.usertype : 'user',
-        verified:true
+        verified: true
     })
 
-    const refreshToken = jwt.sign({
-        id: user._id,
-        role: user.usertype
-    }, process.env.JWT_SECRET_KEY, {
-        expiresIn: "7d"
-    })
 
-    const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex")
-
-    const session = await sessionModel.create({
-        user: user._id,
-        refreshTokenHash: refreshTokenHash,
-        ip: req.ip,
-        userAgent: req.headers["user-agent"]
-    })
-
-    const accessToken = jwt.sign({
-        id: user._id,
-        role: user.usertype,
-        sessionId: session._id
-    }, process.env.JWT_SECRET_KEY, {
-        expiresIn: "15m"
-    })
-
-    res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000
-    })
-    res.status(201).json({
+    return res.status(201).json({
         message: "User Created Successfully",
         user: {
             id: user._id,
             username: user.username,
             email: user.email,
             usertype: user.usertype,
-            verified:user.verified
-        },
-        accessToken: accessToken
+            verified: user.verified
+        }
     })
 }
 
@@ -130,14 +102,14 @@ const userLogin = async (req, res) => {
         sameSite: "strict",
         maxAge: 7 * 24 * 60 * 60 * 1000
     })
-    res.status(200).json({
+    return res.status(200).json({
         message: "User Logged in Successfully",
         user: {
             id: user._id,
             username: user.username,
             email: user.email,
             usertype: user.usertype,
-            verified:user.verified
+            verified: user.verified
         },
         accessToken: accessToken
     })
@@ -170,7 +142,7 @@ const userLogout = async (req, res) => {
         secure: true,
         sameSite: "strict"
     })
-    res.status(200).json({
+    return res.status(200).json({
         message: "User Logged out successfully"
     })
 }
@@ -223,7 +195,7 @@ const getAccessToken = async (req, res) => {
         sameSite: "strict"
     })
 
-    res.status(200).json({
+    return res.status(200).json({
         message: "Access token generated successfully",
         accessToken
     })
@@ -238,13 +210,13 @@ const userLogoutAll = async (req, res) => {
         })
     }
 
-    const decoded = jwt.verify(refreshToken,process.env.JWT_SECRET_KEY)
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET_KEY)
 
     await sessionModel.updateMany({
-        user:decoded.id,
-        revoked:false
-    },{
-        revoked:true
+        user: decoded.id,
+        revoked: false
+    }, {
+        revoked: true
     })
 
     res.clearCookie("refreshToken", {
@@ -252,8 +224,47 @@ const userLogoutAll = async (req, res) => {
         secure: true,
         sameSite: "strict"
     })
-    res.status(200).json({
+    return res.status(200).json({
         message: "User Logged out successfully from all devices"
     })
 }
-module.exports = { userRegister, userLogin, userLogout, getAccessToken ,userLogoutAll};
+
+const userForgetPassword = async (req, res) => {
+    if (!req.body.username || !req.body.email || !req.body.newPassword) {
+        return res.status(404).json({
+            message: "Credentials not found"
+        })
+    }
+    const { username, email, newPassword } = req.body
+
+    const user = await userModel.findOne({
+        username: username,
+        email: email
+    })
+
+    if (!user) {
+        return res.status(400).json({
+            message: "Invalid Credentials"
+        })
+    }
+    if (!user.verified) {
+        return res.status(400).json({
+            message: "User not verified"
+        })
+    }
+    const newHashedPassword = await bcrypt.hash(newPassword, 10)
+    try {
+        user.updateOne({
+            password: newHashedPassword
+        })
+        return res.status(200).json({
+            message: "Password Changed Successfully"
+        })
+    } catch (err) {
+        console.log(err)
+        return res.status(500).json({
+            message: "Internal Error"
+        })
+    }
+}
+module.exports = { userRegister, userLogin, userLogout, getAccessToken, userLogoutAll, userForgetPassword };
